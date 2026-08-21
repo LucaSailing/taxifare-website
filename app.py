@@ -1,118 +1,85 @@
 import streamlit as st
-import pandas as pd
 import requests
 import datetime
-
+import folium
+from streamlit_folium import st_folium
 
 '''
-# Luca model
+# Luca's taxi
 '''
 
-#st.map(latitude=40.7, longitude=-74, zoom=20)
+NY_CENTER = [40.7128, -74.0060]
 
-st.markdown('insert taxi journey parameters')
-date = st.date_input('insert date ex. 2013-07-06',datetime.date(2013, 7, 6))
+# Mémoire de session pour garder les points entre les reruns
+for key in ('pickup', 'dropoff', 'last_click'):
+    st.session_state.setdefault(key, None)
 
-time = st.time_input('insert time format ex.17:18:00', datetime.time(17, 18))
-date_time = datetime.datetime.combine(date,time)
-dt = date_time.strftime("%Y-%m-%d %H:%M:%S")
+st.markdown('### 1. Choisis le départ et l\'arrivée sur la carte')
 
+point_type = st.radio(
+    'Point à placer au prochain clic',
+    ['Départ (pickup)', 'Arrivée (dropoff)'],
+    horizontal=True
+)
 
-pickup_longitude = st.number_input('insert pickup longitude ex. 40.783282')
-pickup_latitude = st.number_input('insert pickup latitude ex. -73.950655')
-dropoff_longitude = st.number_input('insert dropoff longitude ex. 40.769802')
-dropoff_latitude = st.number_input('insert dropoff latitude ex. -73.984365')
-passenger_count = st.number_input('insert passenger count ex. 1')
+# Construction de la carte + marqueurs déjà posés
+m = folium.Map(location=NY_CENTER, zoom_start=12)
+if st.session_state.pickup:
+    folium.Marker(st.session_state.pickup, tooltip='Départ',
+                  icon=folium.Icon(color='green')).add_to(m)
+if st.session_state.dropoff:
+    folium.Marker(st.session_state.dropoff, tooltip='Arrivée',
+                  icon=folium.Icon(color='red')).add_to(m)
+if st.session_state.pickup and st.session_state.dropoff:
+    folium.PolyLine([st.session_state.pickup, st.session_state.dropoff],
+                    color='blue', weight=2).add_to(m)
 
-#st.write('https://taxifare.lewagon.ai/predict?pickup_datetime=2014-07-06+19:18:00&pickup_longitude=-73.950655&pickup_latitude=40.783282&dropoff_longitude=-73.984365&dropoff_latitude=40.769802&passenger_count=2')
+map_data = st_folium(m, height=400, width=700)
 
-params = {
-    'pickup_datetime' : dt,
-    'pickup_longitude' : pickup_longitude,
-    'pickup_latitude' : pickup_latitude,
-    'dropoff_longitude' : dropoff_longitude,
-    'dropoff_latitude' : dropoff_latitude,
-    'passenger_count' : int(passenger_count)
-}
+# Capture du clic (une seule fois par clic grâce à last_click)
+if map_data and map_data.get('last_clicked'):
+    click = (map_data['last_clicked']['lat'], map_data['last_clicked']['lng'])
+    if click != st.session_state.last_click:
+        st.session_state.last_click = click
+        if point_type.startswith('Départ'):
+            st.session_state.pickup = list(click)
+        else:
+            st.session_state.dropoff = list(click)
+        st.rerun()
 
-# st.write(params)
+col1, col2 = st.columns(2)
+col1.write(f"Départ : {st.session_state.pickup}")
+col2.write(f"Arrivée : {st.session_state.dropoff}")
 
-url = 'https://taxifare.lewagon.ai/predict'
+if st.button('Réinitialiser les points'):
+    st.session_state.pickup = None
+    st.session_state.dropoff = None
+    st.session_state.last_click = None
+    st.rerun()
 
-# req = PreparedRequest()
-# req.prepare_url(url, params)
+st.markdown('### 2. Date, heure et passagers')
+columns = st.columns(2)
+date = columns[0].date_input('Date', datetime.date(2013, 7, 6))
+time = columns[1].time_input('Heure', datetime.time(17, 18))
+dt = datetime.datetime.combine(date, time).strftime("%Y-%m-%d %H:%M:%S")
+passenger_count = st.number_input('Nombre de passagers', min_value=1, value=1)
 
-# st.markdown('URL complète :')
-# st.write(req.url)
+st.markdown('### 3. Prédiction')
 
-
-response = requests.get(url, params = params)
-res = response.json()
-
-st.markdown('REPONSE : taxi fare :')
-if response.status_code == 200 :
-    st.write("taxi fare :",res['fare'])
-
-
-# def get_map_data():
-
-#     return pd.DataFrame(
-#             np.random.randn(1000, 2) / [50, 50] + [37.76, -122.4],
-#             columns=['lat', 'lon']
-#         )
-
-
-
-# df = get_map_data()
-# st.write(df)
-
-
-
-# '''
-# # TaxiFareModel front
-# '''
-
-# st.markdown('''
-# Remember that there are several ways to output content into your web page...
-
-# Either as with the title by just creating a string (or an f-string). Or as with this paragraph using the `st.` functions
-# ''')
-
-# '''
-# ## Here we would like to add some controllers in order to ask the user to select the parameters of the ride
-
-# 1. Let's ask for:
-# - date and time
-# - pickup longitude
-# - pickup latitude
-# - dropoff longitude
-# - dropoff latitude
-# - passenger count
-# '''
-
-# '''
-# ## Once we have these, let's call our API in order to retrieve a prediction
-
-# See ? No need to load a `model.joblib` file in this app, we do not even need to know anything about Data Science in order to retrieve a prediction...
-
-# 🤔 How could we call our API ? Off course... The `requests` package 💡
-# '''
-
-# url = 'https://taxifare.lewagon.ai/predict'
-
-# requests.get(url)
-
-# if url == 'https://taxifare.lewagon.ai/predict':
-
-#     st.markdown('Maybe you want to use your own API for the prediction, not the one provided by Le Wagon...')
-
-# '''
-
-# 2. Let's build a dictionary containing the parameters for our API...
-
-# 3. Let's call our API using the `requests` package...
-
-# 4. Let's retrieve the prediction from the **JSON** returned by the API...
-
-# ## Finally, we can display the prediction to the user
-# '''
+if st.session_state.pickup and st.session_state.dropoff:
+    params = {
+        'pickup_datetime': dt,
+        'pickup_longitude': st.session_state.pickup[1],
+        'pickup_latitude': st.session_state.pickup[0],
+        'dropoff_longitude': st.session_state.dropoff[1],
+        'dropoff_latitude': st.session_state.dropoff[0],
+        'passenger_count': int(passenger_count)
+    }
+    response = requests.get('https://taxifare.lewagon.ai/predict', params=params)
+    if response.status_code == 200:
+        fare = response.json()['fare']
+        st.write(f"Prix estimé : **{round(fare, 2)} $**")
+    else:
+        st.error(f"Erreur API ({response.status_code})")
+else:
+    st.info('Place un point de départ et un point d\'arrivée sur la carte.')
